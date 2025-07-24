@@ -4,7 +4,9 @@ from ospath import AttributePathBranch, ParquetPathBranch, iterate_files
 import testcases
 from testcases import *
 from fileio import read_jsonlines
+from sparkrawl import *
 
+import pyspark
 import pytest
 
 import os
@@ -16,8 +18,6 @@ USE_SPARK = False
 @pytest.fixture(scope="session")
 def spark_context():
     if USE_SPARK:
-        import pyspark
-
         pypath = os.environ.get("PYTHONPATH", "")
         test_utils_path = Path(testcases.__file__).parent
         project_path = test_utils_path.parent
@@ -60,9 +60,6 @@ def test_worker_env(spark_context):
 
 
 def test_krawl(spark_context, tmp_path):
-    from sparkrawl import (
-        with_attribs, no_attribs, only_attribs
-    )
 
     data_path = tmp_path / "data"
     populate_directory(data_path)
@@ -71,7 +68,7 @@ def test_krawl(spark_context, tmp_path):
 
     attribs = (
         rdd
-        .map(lambda path: (path, {}))
+        .map(lambda path: (path, {"global_attr": 42}))
         .flatMap(with_attribs(iterate_partitions))
         .flatMap(no_attribs(iterate_files))
         .flatMap(only_attribs(read_jsonlines))
@@ -81,6 +78,39 @@ def test_krawl(spark_context, tmp_path):
     assert attribs["year"] in YEARS
     assert attribs["size"] in SIZES
     assert isinstance(attribs["x"], float)
+    assert attribs["global_attr"] == 42
+
+
+def test_krawl_df(spark_context, tmp_path):
+    """
+
+    ... maybe possible with explode...
+    https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.explode.html
+
+    but doesn't seem advisable
+
+    """
+    data_path = tmp_path / "data"
+    populate_directory(data_path)
+
+    item = dict(
+        path=str(data_path),
+        global_attr=42,
+    )
+    data = [pyspark.Row(**item)]
+    df = spark_context.parallelize(data).toDF()
+
+    rdd = (
+        df.rdd
+        .map(lambda row: row.asDict())
+        .map(extract_key("path"))
+        .map(map_key(Path))
+    )
+
+    (path, attribs), = rdd.collect()
+
+    assert isinstance(path, Path)
+    assert attribs == dict(global_attr=42)
 
 
 def test_branchers(tmp_path):

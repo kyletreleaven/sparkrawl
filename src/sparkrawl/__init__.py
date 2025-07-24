@@ -36,3 +36,30 @@ class only_attribs:
         path, attribs = tup
         for attribs_ in self.flat_map_fn(path):
             yield {**attribs_, **attribs}
+
+
+@dataclass(frozen=True)
+class extract_key:
+    key_attrib: str
+
+    def __call__(self, record):
+        key = record.pop(self.key_attrib)
+        return key, record
+
+
+def inject_key(key_attrib: str, converter: type = None):
+
+    def map_fn(tup):
+        key, record = tup
+        record[key_attrib] = converter(key) if converter else key
+        return record
+
+    return map_fn
+
+
+def map_key(map_fn):
+    def map_fn_(tup):
+        key, value = tup
+        return map_fn(key), value
+
+    return map_fn_
