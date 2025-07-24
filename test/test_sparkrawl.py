@@ -1,11 +1,14 @@
 import json
 
+import pysparkling.sql.session
+
 from ospath import AttributePathBranch, ParquetPathBranch, iterate_files
 import testcases
 from testcases import *
 from fileio import read_jsonlines
 from sparkrawl import *
 
+import pandas as pd
 import pyspark
 import pytest
 
@@ -40,6 +43,14 @@ def spark_context():
     else:
         import pysparkling
         return pysparkling.Context()
+
+
+@pytest.fixture
+def spark_session(spark_context):
+    if USE_SPARK:
+        return pyspark.sql.SparkSession(spark_context)
+    else:
+        return pysparkling.sql.session.SparkSession(spark_context)
 
 
 @pytest.mark.skipif(not USE_SPARK, reason="Only needed when testing with Spark.")
@@ -81,7 +92,8 @@ def test_krawl(spark_context, tmp_path):
     assert attribs["global_attr"] == 42
 
 
-def test_krawl_df(spark_context, tmp_path):
+@pytest.mark.parametrize("use_pandas", [False, True])
+def test_krawl_df(use_pandas, spark_context, spark_session, tmp_path):
     """
 
     ... maybe possible with explode...
@@ -97,8 +109,18 @@ def test_krawl_df(spark_context, tmp_path):
         path=str(data_path),
         global_attr=42,
     )
-    data = [pyspark.Row(**item)]
-    df = spark_context.parallelize(data).toDF()
+
+    if use_pandas:
+        df_ = pd.DataFrame.from_records([item])
+
+        df = (
+            spark_session
+            .createDataFrame(df_)
+        )
+
+    else:
+        data = [pyspark.Row(**item)]
+        df = spark_context.parallelize(data).toDF()
 
     rdd = (
         df.rdd
