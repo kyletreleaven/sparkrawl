@@ -3,32 +3,46 @@ import json
 from ospath import AttributePathBranch, ParquetPathBranch, iterate_files
 import testcases
 from testcases import *
-import pyspark
 from fileio import read_jsonlines
 
 import pytest
 
 import os
 import sys
-# os.environ["PYSPARK_PYTHON"] = sys.executable
+
+USE_SPARK = False
+
 
 @pytest.fixture(scope="session")
 def spark_context():
-    pypath = os.environ.get("PYTHONPATH", "")
-    test_utils_path = os.path.dirname(testcases.__file__)
-    # assert False, test_utils_path
-    worker_pypath = f"{pypath}:{test_utils_path}"
+    if USE_SPARK:
+        import pyspark
 
-    conf = (
-        pyspark.SparkConf()
-        .setAppName("MyRDDApp")
-        .setMaster("local[*]")
-        .set("spark.executorEnv.PYSPARK_PYTHON", sys.executable)
-        .set("spark.executorEnv.PYTHONPATH", worker_pypath)
-    )
-    return pyspark.SparkContext(conf=conf)
+        pypath = os.environ.get("PYTHONPATH", "")
+        test_utils_path = Path(testcases.__file__).parent
+        project_path = test_utils_path.parent
+        src_path = project_path / "src"
+        # assert False, test_utils_path
+        paths = [
+            str(src_path), str(test_utils_path), pypath
+        ]
+        worker_pypath = ":".join(paths)
+
+        conf = (
+            pyspark.SparkConf()
+            .setAppName("MyRDDApp")
+            .setMaster("local[*]")
+            .set("spark.executorEnv.PYSPARK_PYTHON", sys.executable)
+            .set("spark.executorEnv.PYTHONPATH", worker_pypath)
+        )
+        return pyspark.SparkContext(conf=conf)
+
+    else:
+        import pysparkling
+        return pysparkling.Context()
 
 
+@pytest.mark.skipif(not USE_SPARK, reason="Only needed when testing with Spark.")
 def test_worker_env(spark_context):
     # assert False, os.path.abspath(os.path.curdir)
 
@@ -41,13 +55,13 @@ def test_worker_env(spark_context):
         .map(lambda _: os.environ.get("PYTHONPATH"))
     ).collect()
 
+    assert "sparkrawl/src" in worker_pyenv
     assert "sparkrawl/test_util" in worker_pyenv
 
 
-@pytest.mark.skip
 def test_krawl(spark_context, tmp_path):
     from sparkrawl import (
-        key_by_attrib, no_attribs, only_attribs, brancher
+        with_attribs, no_attribs, only_attribs
     )
 
     data_path = tmp_path / "data"
@@ -55,16 +69,20 @@ def test_krawl(spark_context, tmp_path):
 
     rdd = spark_context.parallelize([data_path])
 
-    assert False, (
+    attribs = (
         rdd
         .map(lambda path: (path, {}))
-        .flatMap(brancher(iterate_partitions))
+        .flatMap(with_attribs(iterate_partitions))
         .flatMap(no_attribs(iterate_files))
         .flatMap(only_attribs(read_jsonlines))
     ).first()
 
+    assert attribs["color"] in COLORS
+    assert attribs["year"] in YEARS
+    assert attribs["size"] in SIZES
+    assert isinstance(attribs["x"], float)
 
-# @pytest.mark.skip
+
 def test_branchers(tmp_path):
 
     data_path = tmp_path / "data"
