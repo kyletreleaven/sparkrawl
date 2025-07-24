@@ -9,5 +9,5 @@ def dev(session):
 
 @nox.session
 def test(session):
-    session.install("pyspark", "pytest", "pytest-coverage")
+    session.install("pyspark", "pytest", "pytest-coverage", "pysparkling")
     session.run("pytest")
