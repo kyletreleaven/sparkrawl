@@ -112,10 +112,16 @@ def explode_df(
     TODO: Validate combination of explodeFn and child_attrib.
 
     """
+
+    schema_minus_key = remove_schema_field_by_name(df.schema, parent_attrib)
+
     if new_cols_schema is None:
-        full_schema = None  # infer
+        infer_schema = None  # infer
     else:
-        full_schema = augment_schema(df.schema, new_cols_schema)
+        infer_schema = augment_schema(
+            schema_minus_key,
+            new_cols_schema
+        )
 
     # DEBUG: Handling of parent and child paths...
 
@@ -126,13 +132,14 @@ def explode_df(
             .flatMap(explode_fn)
             .map(inject_key(child_attrib))
         ),
-        full_schema,
+        infer_schema,
     )
 
     if new_cols_schema is None:
         # Override inferences for old columns.
-        full_schema = override_schema(df_.schema, df.schema)
-        df_ = df_.rdd.toDF(full_schema)
+        df_ = df_.rdd.toDF(
+            override_schema(df_.schema, schema_minus_key)
+        )
 
     return df_
 
@@ -166,6 +173,17 @@ def dict_rdd_to_df(
         .map(row_factory)
         .toDF(schema)
     )
+
+
+def remove_schema_field_by_name(
+        schema: pyspark.sql.types.StructType,
+        name: str,
+):
+    return schema.__class__([
+        f
+        for f in schema.fields
+        if f.name != name
+    ])
 
 
 def augment_schema(
