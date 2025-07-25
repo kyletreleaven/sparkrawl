@@ -18,8 +18,22 @@ import sys
 USE_SPARK = False
 
 
+@pytest.fixture
+def spark_context(pyspark_context, pysparkling_context):
+    if USE_SPARK:
+        return pyspark_context
+    else:
+        return pysparkling_context
+
+
+@pytest.fixture
+def pysparkling_context():
+    import pysparkling
+    return pysparkling.Context()
+
+
 @pytest.fixture(scope="session")
-def spark_context():
+def pyspark_context():
     if USE_SPARK:
         pypath = os.environ.get("PYTHONPATH", "")
         test_utils_path = Path(testcases.__file__).parent
@@ -39,10 +53,6 @@ def spark_context():
             .set("spark.executorEnv.PYTHONPATH", worker_pypath)
         )
         return pyspark.SparkContext(conf=conf)
-
-    else:
-        import pysparkling
-        return pysparkling.Context()
 
 
 @pytest.fixture
