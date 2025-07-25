@@ -1,5 +1,9 @@
+import os
+import sys
+
 from sparkrawl import *
 
+import testcases
 from testcases import populate_directory
 from ospath import *
 from fileio import *
@@ -18,10 +22,45 @@ item = dict(path=str(data_path), author="setiptah")
 pdf = pd.DataFrame.from_records([item])
 
 
-import pysparkling.sql.session
+# Spark
+USE_SPARK = True
 
-sc = pysparkling.Context()
-sess = pysparkling.sql.session.SparkSession(sc)
+def get_spark_context():
+
+    if USE_SPARK:
+
+        pypath = os.environ.get("PYTHONPATH", "")
+        test_utils_path = Path(testcases.__file__).parent
+        project_path = test_utils_path.parent
+        src_path = project_path / "src"
+        # assert False, test_utils_path
+        paths = [
+            str(src_path), str(test_utils_path), pypath
+        ]
+        worker_pypath = ":".join(paths)
+
+        conf = (
+            pyspark.SparkConf()
+            .setAppName("MyRDDApp")
+            .setMaster("local[*]")
+            .set("spark.executorEnv.PYSPARK_PYTHON", sys.executable)
+            .set("spark.executorEnv.PYTHONPATH", worker_pypath)
+        )
+        return pyspark.SparkContext(conf=conf)
+
+    else:
+        import pysparkling
+        return pysparkling.Context()
+
+
+if USE_SPARK:
+    from pyspark.sql import SparkSession
+else:
+    from pysparkling.sql.session import SparkSession
+
+
+sc = get_spark_context()
+sess = SparkSession(sc)
 
 df = sess.createDataFrame(pdf)
 df.show()
