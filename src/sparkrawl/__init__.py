@@ -27,8 +27,8 @@ class ExplodeType(ABC):
         ...
 
 
-@singleton
-class KEY_ONLY(ExplodeType):
+@dataclass(frozen=True)
+class _KEY_ONLY(ExplodeType):
 
     def create_input(self, item):
         key, _ = item
@@ -37,9 +37,11 @@ class KEY_ONLY(ExplodeType):
     def create_output(self, key):
         return key, {}  # no attributes
 
+KEY_ONLY = _KEY_ONLY()
 
-@singleton
-class ATTRS_ONLY(ExplodeType):
+
+@dataclass(frozen=True)
+class _ATTRS_ONLY(ExplodeType):
 
     def create_input(self, item):
         _, attrs = item
@@ -48,9 +50,11 @@ class ATTRS_ONLY(ExplodeType):
     def create_output(self, attrs):
         return None, attrs  # no key
 
+ATTRS_ONLY = _ATTRS_ONLY()
 
-@singleton
-class KEY_ATTRS(ExplodeType):
+
+@dataclass(frozen=True)
+class _KEY_ATTRS(ExplodeType):
 
     def create_input(self, item):
         return item
@@ -58,6 +62,7 @@ class KEY_ATTRS(ExplodeType):
     def create_output(self, item):
         return item
 
+KEY_ATTRS = _KEY_ATTRS()
 
 @dataclass(frozen=True)
 class explodeWith:
