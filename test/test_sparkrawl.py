@@ -102,8 +102,22 @@ def test_krawl(spark_context, tmp_path):
     assert attribs["global_attr"] == 42
 
 
+from pyspark.sql.types import *
+
+
 @pytest.mark.parametrize("use_pandas", [False, True])
-def test_krawl_df(use_pandas, spark_context, spark_session, tmp_path):
+@pytest.mark.parametrize("crawl_schema", [
+    None,
+    StructType([
+        StructField("color", StringType()),
+        StructField("year", IntegerType()),
+        StructField("size", StringType()),
+    ]),
+])
+def test_krawl_df(
+        use_pandas, crawl_schema,
+        spark_context, spark_session, tmp_path
+):
     """
 
     ... maybe possible with explode...
@@ -141,6 +155,7 @@ def test_krawl_df(use_pandas, spark_context, spark_session, tmp_path):
         "path",
         explodeWith(iterate_partitions_),
         "path",
+        new_cols_schema=crawl_schema,
     )
 
     row = df_.rdd.first()

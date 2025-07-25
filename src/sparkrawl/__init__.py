@@ -99,6 +99,8 @@ def explode_df(
         parent_attrib: str,
         explode_fn: ExplodeFn,
         child_attrib: str,
+        *,
+        new_cols_schema: pyspark.sql.types.StructType = None,
 ):
     """
 
@@ -106,12 +108,27 @@ def explode_df(
     TODO: Need to handle any existing schema.
 
     """
-    return dict_rdd_to_df(
-        df_to_dict_rdd(df)
-        .map(extract_key(parent_attrib))
-        .flatMap(explode_fn)
-        .map(inject_key(child_attrib))
+    if new_cols_schema is None:
+        full_schema = None  # infer
+    else:
+        full_schema = augment_schema(df.schema, new_cols_schema)
+
+    df_ = dict_rdd_to_df(
+        (
+            df_to_dict_rdd(df)
+            .map(extract_key(parent_attrib))
+            .flatMap(explode_fn)
+            .map(inject_key(child_attrib))
+        ),
+        full_schema,
     )
+
+    if new_cols_schema is None:
+        # Override inferences for old columns.
+        full_schema = override_schema(df_.schema, df.schema)
+        df_ = df_.rdd.toDF(full_schema)
+
+    return df_
 
 
 def df_to_dict_rdd(
@@ -121,9 +138,28 @@ def df_to_dict_rdd(
 
 
 def dict_rdd_to_df(
-        rdd: pyspark.RDD[Attribs]
+        rdd: pyspark.RDD[Attribs],
+        schema: Optional = None
 ) -> pyspark.sql.DataFrame:
-    return rdd.map(lambda attribs: pyspark.Row(**attribs)).toDF()
+    return (
+        rdd
+        .map(lambda attribs: pyspark.Row(**attribs))  # TODO: Necessary?
+        .toDF(schema)
+    )
+
+
+def augment_schema(
+        schema: pyspark.sql.types.StructType,
+        new_cols_schema
+):
+    raise RuntimeError("no augment!")
+
+
+def override_schema(
+        schema: pyspark.sql.types.StructType,
+        overrides: pyspark.sql.types.StructType,
+):
+    raise RuntimeError("no override!")
 
 
 @dataclass(frozen=True)
