@@ -112,6 +112,7 @@ else:
 @pytest.mark.parametrize("crawl_schema", [
     None,
     StructType([
+        StructField("child_path", StringType()),
         StructField("color", StringType()),
         StructField("year", IntegerType()),
         StructField("size", StringType()),
@@ -164,7 +165,7 @@ def test_krawl_df(
     row = df_.rdd.first()
     assert row.global_attr == 42
 
-    assert Path(row.path) == data_path / row.color / str(row.year) / f"size={row.size}"
+    assert Path(row.child_path) == data_path / row.color / str(row.year) / f"size={row.size}"
 
 
 def test_branchers(tmp_path):
