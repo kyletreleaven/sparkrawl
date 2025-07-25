@@ -105,13 +105,14 @@ def explode_df(
     """
 
     TODO: Validate combination of explodeFn and child_attrib.
-    TODO: Need to handle any existing schema.
 
     """
     if new_cols_schema is None:
         full_schema = None  # infer
     else:
         full_schema = augment_schema(df.schema, new_cols_schema)
+
+    # DEBUG: Handling of parent and child paths...
 
     df_ = dict_rdd_to_df(
         (
@@ -139,27 +140,59 @@ def df_to_dict_rdd(
 
 def dict_rdd_to_df(
         rdd: pyspark.RDD[Attribs],
-        schema: Optional = None
+        schema: Optional[pyspark.sql.types.StructType] = None
 ) -> pyspark.sql.DataFrame:
+
+    # rows have to be
+    if schema is None:
+
+        def row_factory(attribs):
+            return pyspark.Row(**attribs)
+
+    else:
+
+        RowFactory = pyspark.Row(*schema.fieldNames())
+
+        def row_factory(attribs):
+            return RowFactory(**attribs)
+
     return (
         rdd
-        .map(lambda attribs: pyspark.Row(**attribs))  # TODO: Necessary?
+        .map(row_factory)
         .toDF(schema)
     )
 
 
 def augment_schema(
         schema: pyspark.sql.types.StructType,
-        new_cols_schema
+        new_cols_schema: pyspark.sql.types.StructType,
 ):
-    raise RuntimeError("no augment!")
+    fields, field_set = [], set()
+    for k, f in enumerate(schema.fields):
+        fields.append(f)
+        field_set.add(f.name)
+
+    for f in new_cols_schema.fields:
+        if f in field_set:
+            raise ValueError("A new column '{f.name}' has the same name as an old column.")
+        fields.append(f)
+
+    return schema.__class__(fields)
 
 
 def override_schema(
         schema: pyspark.sql.types.StructType,
         overrides: pyspark.sql.types.StructType,
 ):
-    raise RuntimeError("no override!")
+    fields, field_map = [], {}
+    for k, f in enumerate(schema.fields):
+        fields.append(f)
+        field_map[f.name] = k
+
+    for f in overrides.fields:
+        fields[field_map[f.name]] = f
+
+    return schema.__class__(fields)
 
 
 @dataclass(frozen=True)

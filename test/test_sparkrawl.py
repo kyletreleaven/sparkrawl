@@ -102,7 +102,10 @@ def test_krawl(spark_context, tmp_path):
     assert attribs["global_attr"] == 42
 
 
-from pyspark.sql.types import *
+if USE_SPARK:
+    from pyspark.sql.types import *
+else:
+    from pysparkling.sql.types import *
 
 
 @pytest.mark.parametrize("use_pandas", [False, True])
@@ -154,7 +157,7 @@ def test_krawl_df(
         df,
         "path",
         explodeWith(iterate_partitions_),
-        "path",
+        "child_path",
         new_cols_schema=crawl_schema,
     )
 
