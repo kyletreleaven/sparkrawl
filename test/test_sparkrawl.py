@@ -154,7 +154,7 @@ def test_krawl_df(
         for path_, attribs in iterate_partitions(Path(path_str)):
             yield str(path_), attribs
 
-    df_ = explode_df(
+    df1 = explode_df(
         df,
         "path",
         explodeWith(iterate_partitions_),
@@ -162,10 +162,32 @@ def test_krawl_df(
         new_cols_schema=crawl_schema,
     )
 
-    row = df_.rdd.first()
+    row = df1.rdd.first()
     assert row.global_attr == 42
 
     assert Path(row.child_path) == data_path / row.color / str(row.year) / f"size={row.size}"
+
+    # TODO: Break this test up.
+
+    def iterate_files_(path_str):
+        for path in iterate_files(Path(path_str)):
+            yield str(path)
+
+    df2 = explode_df(
+        df1, "child_path",
+        explodeWith(iterate_files_, out_spec=KEY_ONLY),
+        "file_path"
+    )
+
+    def read_jsonlines_(path_str):
+        yield from read_jsonlines(Path(path_str))
+
+    df3 = explode_df(
+        df2, "file_path",
+        explodeWith(read_jsonlines_, out_spec=ATTRS_ONLY),
+    )
+
+    assert isinstance(df3.rdd.first().x, float)
 
 
 def test_branchers(tmp_path):

@@ -102,8 +102,8 @@ class explodeWith:
 def explode_df(
         df: pyspark.sql.DataFrame,
         parent_attrib: str,
-        explode_fn: ExplodeFn,
-        child_attrib: str,
+        explode_fn: explodeWith,
+        child_attrib: Optional[str] = None,
         *,
         new_cols_schema: pyspark.sql.types.StructType = None,
 ):
@@ -112,6 +112,22 @@ def explode_df(
     TODO: Validate combination of explodeFn and child_attrib.
 
     """
+    if explode_fn.out_spec == ATTRS_ONLY:
+        assert child_attrib is None, "Child attribute ill-defined during attribs-only explosion."
+    else:
+        assert child_attrib is not None, "Child attribute required."
+
+    rdd = (
+        df_to_dict_rdd(df)
+        .map(extract_key(parent_attrib))
+        .flatMap(explode_fn)
+    )
+
+    rdd_ = (
+        rdd
+        if explode_fn.out_spec == ATTRS_ONLY  # key already dropped
+        else rdd.map(inject_key(child_attrib))
+    )
 
     schema_minus_key = remove_schema_field_by_name(df.schema, parent_attrib)
 
@@ -123,15 +139,7 @@ def explode_df(
             new_cols_schema
         )
 
-    df_ = dict_rdd_to_df(
-        (
-            df_to_dict_rdd(df)
-            .map(extract_key(parent_attrib))
-            .flatMap(explode_fn)
-            .map(inject_key(child_attrib))
-        ),
-        infer_schema,
-    )
+    df_ = dict_rdd_to_df(rdd_, infer_schema)
 
     if new_cols_schema is None:
         # Override inferences for old columns.
