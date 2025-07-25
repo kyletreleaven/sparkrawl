@@ -85,14 +85,14 @@ def test_krawl(spark_context, tmp_path):
     data_path = tmp_path / "data"
     populate_directory(data_path)
 
-    rdd = spark_context.parallelize([data_path])
+    item = data_path, {"global_attr": 42}
+    rdd = spark_context.parallelize([item])
 
     attribs = (
         rdd
-        .map(lambda path: (path, {"global_attr": 42}))
-        .flatMap(with_attribs(iterate_partitions))
-        .flatMap(no_attribs(iterate_files))
-        .flatMap(only_attribs(read_jsonlines))
+        .flatMap(explodeWith(iterate_partitions, KEY_ONLY, KEY_ATTRS))
+        .flatMap(explodeWith(iterate_files, KEY_ONLY, KEY_ONLY))
+        .flatMap(explodeWith(read_jsonlines, KEY_ONLY, ATTRS_ONLY))
     ).first()
 
     assert attribs["color"] in COLORS
@@ -132,17 +132,21 @@ def test_krawl_df(use_pandas, spark_context, spark_session, tmp_path):
         data = [pyspark.Row(**item)]
         df = spark_context.parallelize(data).toDF()
 
-    rdd = (
-        df.rdd
-        .map(lambda row: row.asDict())
-        .map(extract_key("path"))
-        .map(map_key(Path))
+    def iterate_partitions_(path_str):
+        for path_, attribs in iterate_partitions(Path(path_str)):
+            yield str(path_), attribs
+
+    df_ = explode_df(
+        df,
+        "path",
+        explodeWith(iterate_partitions_),
+        "path",
     )
 
-    (path, attribs), = rdd.collect()
+    row = df_.rdd.first()
+    assert row.global_attr == 42
 
-    assert isinstance(path, Path)
-    assert attribs == dict(global_attr=42)
+    assert Path(row.path) == data_path / row.color / str(row.year) / f"size={row.size}"
 
 
 def test_branchers(tmp_path):
