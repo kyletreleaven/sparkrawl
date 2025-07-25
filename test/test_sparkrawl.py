@@ -186,3 +186,18 @@ def test_branchers(tmp_path):
         assert attribs["size"] in SIZES
 
         break  # if we can pull one out, that's good enough
+
+
+@pytest.mark.xfail(reason="Beware dict key order!")
+def test_createDataFrame_unordered_schemaless(spark_session):
+
+    data = [
+        dict(a=1, b="1"),
+        dict(b="2", a=2),
+    ]
+
+    df = spark_session.createDataFrame([
+        pyspark.Row(**record) for record in data
+    ])
+
+    assert [row.a for row in df.rdd.collect()] == [1, 2]

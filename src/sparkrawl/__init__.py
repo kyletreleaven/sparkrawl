@@ -123,8 +123,6 @@ def explode_df(
             new_cols_schema
         )
 
-    # DEBUG: Handling of parent and child paths...
-
     df_ = dict_rdd_to_df(
         (
             df_to_dict_rdd(df)
@@ -154,19 +152,21 @@ def dict_rdd_to_df(
         rdd: pyspark.RDD[Attribs],
         schema: Optional[pyspark.sql.types.StructType] = None
 ) -> pyspark.sql.DataFrame:
-
-    # rows have to be
     if schema is None:
+        """
+        
+        TODO: Do we need better, cheaper, faster handling here?
+        (For example: see unit test with attribute ordering issue.)
 
+        """
         def row_factory(attribs):
             return pyspark.Row(**attribs)
 
     else:
 
-        RowFactory = pyspark.Row(*schema.fieldNames())
-
         def row_factory(attribs):
-            return RowFactory(**attribs)
+            ordered = {name: attribs[name] for name in schema.fieldNames()}
+            return pyspark.Row(**ordered)
 
     return (
         rdd
