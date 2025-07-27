@@ -14,122 +14,47 @@ ExplodeFn = Callable[
     [Tuple[Parent, Attribs]],
     Iterable[Tuple[Child, Attribs]]
 ]
-
-
-class ExplodeType(ABC):
-
-    @abstractmethod
-    def create_input(self, item):
-        ...
-
-    @abstractmethod
-    def create_output(self, out):
-        ...
+ExplodeDataFrameFn = Callable[
+    [Tuple[Parent, Attribs]],
+    Iterable[Attribs]
+]
 
 
 @dataclass(frozen=True)
-class _KEY_ONLY(ExplodeType):
+class explode_with:
 
-    def create_input(self, item):
-        key, _ = item
-        return key
+    fn: ExplodeFn
+    """
 
-    def create_output(self, key):
-        return key, {}  # no attributes
-
-KEY_ONLY = _KEY_ONLY()
-
-
-@dataclass(frozen=True)
-class _ATTRS_ONLY(ExplodeType):
-
-    def create_input(self, item):
-        _, attrs = item
-        return attrs
-
-    def create_output(self, attrs):
-        return None, attrs  # no key
-
-ATTRS_ONLY = _ATTRS_ONLY()
-
-
-@dataclass(frozen=True)
-class _KEY_ATTRS(ExplodeType):
-
-    def create_input(self, item):
-        return item
-
-    def create_output(self, item):
-        return item
-
-KEY_ATTRS = _KEY_ATTRS()
-
-@dataclass(frozen=True)
-class explodeWith:
-    fn: Callable
-    in_spec: ExplodeType = KEY_ONLY
-    out_spec: ExplodeType = KEY_ATTRS
-    drop_key: Optional[bool] = None
-
-    @property
-    def will_drop_key(self):  # Resolve drop_key intent.
-
-        if self.drop_key is None:
-            return self.out_spec == ATTRS_ONLY
-
-        return self.drop_key
+    it _only_ makes sense for this to be (key, {attrs}) -> [(key, {attrs})]
+    
+    """
 
     def __call__(self, item):
+        _parent, attribs = item
 
-        if self.will_drop_key:
-            delegate = dataclasses.replace(
-                self,
-                drop_key=False
-            )
-            for child, attribs_ in delegate(item):
-                yield attribs_
-
-        else:
-            _parent, attribs = item
-
-            for out in self.fn(
-                self.in_spec.create_input(item)
-            ):
-                child, attribs_ = self.out_spec.create_output(out)
-                yield child, {**attribs, **attribs_}
+        for child, attribs_ in self.fn(item):
+            yield child, {**attribs, **attribs_}
 
 
 def explode_df(
         df: pyspark.sql.DataFrame,
-        parent_attrib: str,
-        explode_fn: explodeWith,
-        child_attrib: Optional[str] = None,
+        key_attrib: str,
+        explode_fn: ExplodeDataFrameFn,
         *,
         new_cols_schema: pyspark.sql.types.StructType = None,
 ):
-    """
-
-    TODO: Validate combination of explodeFn and child_attrib.
-
-    """
-    if explode_fn.out_spec == ATTRS_ONLY:
-        assert child_attrib is None, "Child attribute ill-defined during attribs-only explosion."
-    else:
-        assert child_attrib is not None, "Child attribute required."
 
     rdd = (
         df_to_dict_rdd(df)
-        .map(extract_key(parent_attrib))
-        .flatMap(explode_fn)
-    )
+        .map(extract_key(key_attrib))
+        .flatMap(explode_with(pipeline(
+            explode_fn,
+            for_each(key_by_none)  # TODO: For performance we'd just write a tailored variant of explode_with.
+        )))
+    ).values()
 
-    rdd_ = (
-        rdd
-        if explode_fn.out_spec == ATTRS_ONLY  # key already dropped
-        else rdd.map(inject_key(child_attrib))
-    )
-
-    schema_minus_key = remove_schema_field_by_name(df.schema, parent_attrib)
+    schema_minus_key = remove_schema_field_by_name(df.schema, key_attrib)
 
     if new_cols_schema is None:
         infer_schema = None  # infer
@@ -139,7 +64,7 @@ def explode_df(
             new_cols_schema
         )
 
-    df_ = dict_rdd_to_df(rdd_, infer_schema)
+    df_ = dict_rdd_to_df(rdd, infer_schema)
 
     if new_cols_schema is None:
         # Override inferences for old columns.
@@ -243,3 +168,53 @@ def inject_key(key_attrib: str, converter: type = None):
         return record
 
     return map_fn
+
+
+def pipeline(*fn_seq):
+
+    def fn(item):
+        for fn_ in fn_seq:
+            item = fn_(item)
+        return item
+
+    return fn
+
+
+def for_each(fn):
+
+    def fn_(it):
+        yield from (
+            fn(i) for i in it
+        )
+
+    return fn_
+
+
+def map_key(fn):
+
+    def fn_(item):
+        key, value = item
+        return fn(key), value
+
+    return fn_
+
+
+def key_only(item):
+    key, value = item
+    return key
+
+
+def key_by_none(value):
+    return None, value
+
+
+def empty_attribs(key):
+    return key, {}
+
+
+def dictwrap(key):
+
+    def fn(value):
+        return {key: value}
+
+    return fn

@@ -90,10 +90,10 @@ def test_krawl(spark_context, tmp_path):
 
     attribs = (
         rdd
-        .flatMap(explodeWith(iterate_partitions, KEY_ONLY, KEY_ATTRS))
-        .flatMap(explodeWith(iterate_files, KEY_ONLY, KEY_ONLY))
-        .flatMap(explodeWith(read_jsonlines, KEY_ONLY, ATTRS_ONLY))
-    ).first()
+        .flatMap(explode_with(pipeline(key_only, iterate_partitions)))
+        .flatMap(explode_with(pipeline(key_only, iterate_files, for_each(empty_attribs))))
+        .flatMap(explode_with(pipeline(key_only, read_jsonlines, for_each(key_by_none))))
+    ).values().first()
 
     assert attribs["color"] in COLORS
     assert attribs["year"] in YEARS
@@ -150,15 +150,22 @@ def test_krawl_df(
         data = [pyspark.Row(**item)]
         df = spark_context.parallelize(data).toDF()
 
-    def iterate_partitions_(path_str):
-        for path_, attribs in iterate_partitions(Path(path_str)):
-            yield str(path_), attribs
+    # convert signature
+    iterate_partitions_ = pipeline(
+        Path,
+        iterate_partitions,
+        for_each(map_key(str))
+    ) # :: str -> [(str, {attrs})]
 
+    # now we need something that takes key, {attrs}, and iterates just {attrs_}
     df1 = explode_df(
         df,
         "path",
-        explodeWith(iterate_partitions_),
-        "child_path",
+        pipeline(
+            key_only,
+            iterate_partitions_,
+            for_each(inject_key("child_path"))
+        ),
         new_cols_schema=crawl_schema,
     )
 
@@ -169,22 +176,25 @@ def test_krawl_df(
 
     # TODO: Break this test up.
 
-    def iterate_files_(path_str):
-        for path in iterate_files(Path(path_str)):
-            yield str(path)
+    iterate_files_ = pipeline(Path, iterate_files, for_each(str))
 
     df2 = explode_df(
         df1, "child_path",
-        explodeWith(iterate_files_, out_spec=KEY_ONLY),
-        "file_path"
+        pipeline(
+            key_only,
+            iterate_files_,
+            for_each(dictwrap("file_path"))
+        ),
     )
 
-    def read_jsonlines_(path_str):
-        yield from read_jsonlines(Path(path_str))
+    read_jsonlines_ = pipeline(Path, read_jsonlines)
 
     df3 = explode_df(
         df2, "file_path",
-        explodeWith(read_jsonlines_, out_spec=ATTRS_ONLY),
+        pipeline(
+            key_only,
+            read_jsonlines_,
+        )
     )
 
     assert isinstance(df3.rdd.first().x, float)
