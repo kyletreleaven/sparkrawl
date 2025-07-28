@@ -204,6 +204,11 @@ def key_only(item):
     return key
 
 
+def drop_key(item):
+    key, value = item
+    return value
+
+
 def key_by_none(value):
     return None, value
 
@@ -233,3 +238,24 @@ def dictwrap(key):
         return {key: value}
 
     return fn
+
+
+def flatten(iteriter):
+    for iter in iteriter:
+        yield from iter
+
+
+def fan_out(*fn_seq):
+    """
+
+    Each fn in fn_seq takes an item and returns an iterator.
+
+    """
+
+    def fn_(item):
+        iter = [item]
+        for fn in fn_seq:
+            iter = flatten(map(fn, iter))
+        return iter
+
+    return fn_
