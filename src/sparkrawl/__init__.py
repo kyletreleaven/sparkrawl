@@ -231,6 +231,22 @@ def key_by_none(value):
     return None, value
 
 
+def to_attribs(lambdict: Optional[Dict[str, Callable]] = None, **kwargs):
+
+    if lambdict is None:
+        lambdict = kwargs
+    else:
+        lambdict = {**lambdict, **kwargs}
+
+    def fn(key):
+        return {
+            attrib: fn_(key)
+            for attrib, fn_ in lambdict.items()
+        }
+
+    return fn
+
+
 def with_attribs(lambdict: Optional[Dict[str, Callable]] = None, **kwargs):
 
     if lambdict is None:
@@ -277,3 +293,11 @@ def fan_out(*fn_seq):
         return iter
 
     return fn_
+
+
+def compute_value(value_fn):
+
+    def fn(key):
+        return key, value_fn(key)
+
+    return fn

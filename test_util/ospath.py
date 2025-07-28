@@ -42,3 +42,11 @@ def iterate_files(path: Path):
         for child in path.iterdir()
         if child.is_file()
     )
+
+
+def iterate_dirs(path: Path):
+    yield from (
+        child
+        for child in path.iterdir()
+        if child.is_dir()
+    )

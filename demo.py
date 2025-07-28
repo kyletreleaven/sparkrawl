@@ -1,14 +1,20 @@
 import os
 import sys
+import tempfile
 
 from sparkrawl import *
 
 import testcases
+from sparkrawl import with_attribs
 from testcases import populate_directory
 from ospath import *
 from fileio import *
 
 from pathlib import Path
+from fakes3 import FakeS3, Uri
+
+
+# Local examples!
 
 data_path = Path("data")
 
@@ -16,14 +22,108 @@ if not data_path.exists():
     populate_directory(data_path)
 
 
+## Raw
+
+fn = pipeline(
+    with_attribs(),
+    fan_out(
+        explode_with(pipeline(key_only, iterate_dirs, for_each(with_attribs(color=lambda path: path.name)))),
+        explode_with(pipeline(key_only, AttributePathBranch("year", int))),
+        explode_with(pipeline(key_only, ParquetPathBranch())),
+        explode_with(
+            pipeline(
+                key_only,
+                iterate_files,
+                for_each(with_attribs(file_path=lambda p: p))
+            )
+        ),
+        explode_with(
+            pipeline(key_only, read_jsonlines, for_each(key_by_none))
+        )
+    ),
+    for_each(drop_key)
+)
+list(fn(data_path))
+
+
+
+## Pandas DataFrame
 import pandas as pd
 
-item = dict(path=str(data_path), author="setiptah")
-pdf = pd.DataFrame.from_records([item])
+df = pd.DataFrame.from_records([dict(path=data_path, author="ktreleav")])
+
+exploder = pipeline(
+    fan_out(
+        explode_with(pipeline(key_only, iterate_dirs, for_each(with_attribs(color=lambda path: path.name)))),
+        explode_with(pipeline(key_only, AttributePathBranch("year", int))),
+        explode_with(pipeline(key_only, ParquetPathBranch())),
+        explode_with(
+            pipeline(
+                key_only,
+                iterate_files,
+                for_each(with_attribs(
+                    # file_path=lambda p: p
+                    partition=lambda path: int(path.name.split(".")[0])
+                ))
+            )
+        ),
+        explode_with(
+            pipeline(key_only, read_jsonlines, for_each(key_by_none))
+        )
+    ),
+    for_each(drop_key)
+)
+
+df_ = explode_pandas_df(df, "path", exploder)
 
 
-# Spark
-USE_SPARK = True
+## Enter S3
+
+fake_s3_path = Path("fake-s3")
+fake_s3 = FakeS3(fake_s3_path)
+
+data_root = Uri.from_uri("s3://some-bucket/prefix")
+
+data_path = fake_s3._resolve(str(data_root))
+
+if not data_path.exists():
+    populate_directory(data_path)
+
+
+# Raw example. Don't even need S3 or Spark, right?
+
+def uri_name(uri: str):
+    return Uri.from_uri(uri).key_path.name
+
+def read_s3_json(uri):
+    with tempfile.NamedTemporaryFile() as f:
+        fake_s3.get(uri, f.name)
+        yield from read_jsonlines(Path(f.name))
+
+def parquet_attribs(uri):
+    attrib, value = uri_name(uri).split("=", maxsplit=1)
+    return {attrib: value}
+
+exploder_s3 = pipeline(
+    fan_out(
+        explode_with(pipeline(key_only, fake_s3.list_prefixes, for_each(with_attribs(color=uri_name)))),
+        explode_with(pipeline(key_only, fake_s3.list_prefixes, for_each(with_attribs(year=pipeline(uri_name, int))))),
+        explode_with(pipeline(key_only, fake_s3.list_prefixes, for_each(compute_value(parquet_attribs)))),
+        explode_with(pipeline(key_only, fake_s3.list_objects, for_each(with_attribs(
+            # uri=lambda uri: uri
+        )))),
+        explode_with(pipeline(key_only, read_s3_json, for_each(key_by_none)))
+    ),
+    for_each(drop_key)
+)
+
+pdf = pd.DataFrame.from_records([{"path": str(data_root)}])
+pdf_ = explode_pandas_df(pdf, "path", exploder_s3)
+
+
+# Enter Spark
+
+USE_SPARK = False
 
 def get_spark_context():
 
@@ -52,12 +152,12 @@ def get_spark_context():
         import pysparkling
         return pysparkling.Context()
 
+## SQL
 
 if USE_SPARK:
     from pyspark.sql import SparkSession
 else:
     from pysparkling.sql.session import SparkSession
-
 
 sc = get_spark_context()
 sess = SparkSession(sc)
@@ -65,56 +165,11 @@ sess = SparkSession(sc)
 df = sess.createDataFrame(pdf)
 df.show()
 
-
-def on_path_str(fn):
-
-    def fn_(path_str):
-        for path, attribs in fn(Path(path_str)):
-            yield str(path), attribs
-
-    return fn_
+df_ = explode_df(df, "path", exploder_s3)
+df_.show()
 
 
-df1 = explode_df(
-    df,
-    "path",
-    explodeWith(on_path_str(AttributePathBranch("color"))),
-    "path",
-)
-df1.show()
+## RDD
 
-df2 = explode_df(
-    df1, "path",
-    explodeWith(on_path_str(AttributePathBranch("year", int))),
-    "path",
-)
-df2.show()
-
-df3 = explode_df(
-    df2, "path",
-    explodeWith(on_path_str(ParquetPathBranch())),
-    "path",
-)
-df3.show()
-
-
-def iterate_files_(path_str):
-    for path_ in iterate_files(Path(path_str)):
-        yield str(path_)
-
-df4 = explode_df(
-    df3, "path",
-    explodeWith(iterate_files_, out_spec=KEY_ONLY),
-    "path",
-)
-df4.show()
-
-
-def read_jsonlines_(path_str):
-    yield from read_jsonlines(Path(path_str))
-
-df5 = explode_df(
-    df4, "path",
-    explodeWith(read_jsonlines_, out_spec=ATTRS_ONLY),
-)
-df5.show()
+rdd = sc.parallelize([str(data_root)]).map(with_attribs()).flatMap(exploder_s3)
+rdd.sample(False, .1/6).collect()
