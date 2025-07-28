@@ -208,8 +208,23 @@ def key_by_none(value):
     return None, value
 
 
-def empty_attribs(key):
-    return key, {}
+def with_attribs(lambdict: Optional[Dict[str, Callable]] = None, **kwargs):
+
+    if lambdict is None:
+        lambdict = kwargs
+    else:
+        lambdict = {**lambdict, **kwargs}
+
+    def fn(key):
+        return key, {
+            attrib: fn_(key)
+            for attrib, fn_ in lambdict.items()
+        }
+
+    return fn
+
+
+empty_attribs = with_attribs()
 
 
 def dictwrap(key):
