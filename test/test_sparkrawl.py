@@ -2,7 +2,7 @@ import json
 
 import pysparkling.sql.session
 
-from ospath import AttributePathBranch, ParquetPathBranch, iterate_files
+from ospath import *
 import testcases
 from testcases import *
 from fileio import read_jsonlines
@@ -16,6 +16,76 @@ import os
 import sys
 
 USE_SPARK = False
+
+
+def test_nested_loop(tmp_path):
+
+    data_path = tmp_path / "data"
+    populate_directory(data_path)
+
+    def records():
+        for d1 in data_path.iterdir():
+            if not d1.is_dir():
+                continue
+
+            color = d1.name
+
+            for d2 in d1.iterdir():
+                if not d2.is_dir():
+                    continue
+
+                year = int(d2.name)
+
+                for d3 in d2.iterdir():
+                    if not d3.is_dir():
+                        continue
+
+                    attr3, value3 = d3.name.split("=", maxsplit=1)  # parquet partitioning
+
+                    for f in d3.iterdir():
+                        if not f.is_file():
+                            continue
+
+                        for record in read_jsonlines(f):
+                            record.update(color=color, year=year, **{attr3: value3})
+                            yield record
+
+    df = pd.DataFrame.from_records(records())
+    # assert False, df
+    assert set(df.columns) == set(["color", "year", "size", "x"])
+
+
+def test_pipeline(tmp_path):
+
+    data_path = tmp_path / "data"
+    populate_directory(data_path)
+
+    def parquet_attribs(path: Path):
+        attr, value = path.name.split("=", maxsplit=1)
+        return {attr: value}
+
+    stage1 = pipeline(key_only, iterate_dirs, for_each(with_attribs(color=lambda path: path.name)))
+    stage2 = pipeline(key_only, iterate_dirs, for_each(with_attribs(year=lambda path: int(path.name))))
+    stage3 = pipeline(key_only, iterate_dirs, for_each(lambda path: (path, parquet_attribs(path))))
+    stage4 = pipeline(key_only, iterate_files, for_each(with_attribs()))
+    stage5 = pipeline(key_only, read_jsonlines, for_each(key_by_none))
+
+    exploder = pipeline(
+        with_attribs(),  # empty attribs
+        fan_out(
+            explode_with(stage1),
+            explode_with(stage2),
+            explode_with(stage3),
+            explode_with(stage4),
+            explode_with(stage5),
+        ),
+        for_each(drop_key)
+    )
+
+    df = pd.DataFrame.from_records(exploder(data_path))
+
+    # assert False, df
+    assert set(df.columns) == set(["color", "year", "size", "x"])
 
 
 @pytest.fixture
