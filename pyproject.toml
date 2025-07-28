@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sparkrawl"
+description = "A microframework for exploding your dataframes."
+authors = [
+  {name = "Kyle Treleaven", email = "ktreleav@gmail.com"},
+]
+dynamic = ["version"]
+dependencies = [
+    "pandas",
+    "pyspark",
+]
+
+[project.optional-dependencies]
+build = [
+    "black",
+    # "click",
+]
+dev = [
+    "pysparkling",
+    "ipython",
+    "notebook",
+    "ipykernel",
+]
+test = [
+    "pysparkling",
+    "pytest",
+    "pytest-coverage",
+]
+format = [
+    "black",
+]
+docs = [
+    "nbconvert",
+    "mkdocs-material",
+    "mkdocs-terminal",
+    "mkdocs-rtd-dropdown",
+    "mkdocstrings[python]",
+    "pymdown-extensions",
+]
