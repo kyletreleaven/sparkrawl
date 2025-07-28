@@ -1,57 +1,55 @@
 from dataclasses import dataclass
-from typing import TypeVar, Callable, Dict, Any, Iterable, Tuple, Optional
+from typing import TypeVar, Callable, Dict, Any, Iterable, Tuple, Optional, Generic
 
 import pyspark
 
 from sparkrawl.common import singleton
 
-Parent = TypeVar("Parent")
-Child = TypeVar("TChild")
+T = TypeVar("T")
+T1 = TypeVar("T1")
+T2 = TypeVar("T2")
 Attribs = Dict[str, Any]
-BranchFn = Callable[[Parent], Iterable[Tuple[Child, Attribs]]]
-ExplodeFn = Callable[[Tuple[Parent, Attribs]], Iterable[Tuple[Child, Attribs]]]
-ExplodeDataFrameFn = Callable[[Tuple[Parent, Attribs]], Iterable[Attribs]]
+WithAttrs = Tuple[T, Attribs]
 
 
 @dataclass(frozen=True)
-class explode_with:
+class explode_with(Generic[T1, T2]):
+    """Decorates a with-attributes iterator function to merge parent attributes into children's."""
 
-    fn: ExplodeFn
-    """
+    iter_fn: Callable[[WithAttrs[T1]], Iterable[WithAttrs[T2]]]
 
-    it _only_ makes sense for this to be (key, {attrs}) -> [(key, {attrs})]
-    
-    """
-
-    def __call__(self, item):
+    def __call__(self, item: WithAttrs[T1]) -> Iterable[WithAttrs[T2]]:
         _parent, attribs = item
 
-        for child, attribs_ in self.fn(item):
+        for child, attribs_ in self.iter_fn(item):
             yield child, {**attribs, **attribs_}
 
 
-def explode_pandas_df(
-    df: "pandas.DataFrame",
-    key_attrib: str,
-    explode_fn: ExplodeDataFrameFn,
-):
-    import pandas as pd
+@dataclass(frozen=True)
+class explode_pandas_df(Generic[T]):
+    df: "pandas.DataFrame"
+    key_attrib: str
+    explode_fn: Callable[[WithAttrs[T]], Iterable[Attribs]]
 
-    def records():
-        for _, row in df.iterrows():
-            rec = dict(row)
-            key = rec.pop(key_attrib)
-            tup = key, rec
-            for attribs in explode_fn(tup):
-                yield {**rec, **attribs}
+    def __call__(self, item: WithAttrs[T]) -> "pandas.DataFrame":
 
-    return pd.DataFrame.from_records(records())
+        import pandas as pd
+
+        def records():
+            for _, row in self.df.iterrows():
+                rec = dict(row)
+                key = rec.pop(self.key_attrib)
+                tup = key, rec
+                for attribs in self.explode_fn(tup):
+                    yield {**rec, **attribs}
+
+        return pd.DataFrame.from_records(records())
 
 
 def explode_df(
     df: pyspark.sql.DataFrame,
     key_attrib: str,
-    explode_fn: ExplodeDataFrameFn,
+    explode_fn: Callable[[WithAttrs[T]], Iterable[Attribs]],
     *,
     new_cols_schema: pyspark.sql.types.StructType = None,
 ):
@@ -159,7 +157,7 @@ def override_schema(
 class extract_key:
     key_attrib: str
 
-    def __call__(self, record):
+    def __call__(self, record: Attribs):
         key = record.pop(self.key_attrib)
         return key, record
 
@@ -174,14 +172,20 @@ def inject_key(key_attrib: str, converter: type = None):
     return map_fn
 
 
-def pipeline(*fn_seq):
+@dataclass(frozen=True)
+class pipeline:
+    fn_seq: Tuple[Callable]
 
-    def fn(item):
-        for fn_ in fn_seq:
+    def __call__(self, item):
+        for fn_ in self.fn_seq:
             item = fn_(item)
         return item
 
-    return fn
+
+class pipeline(pipeline):
+
+    def __init__(self, *fn_seq):
+        return super().__init__(fn_seq)
 
 
 def for_each(fn):
@@ -257,20 +261,27 @@ def flatten(iteriter):
         yield from iter
 
 
-def fan_out(*fn_seq):
+@dataclass(frozen=True)
+class fan_out:
     """
 
     Each fn in fn_seq takes an item and returns an iterator.
 
     """
 
-    def fn_(item):
+    fn_seq: Tuple[Callable]
+
+    def __call__(self, item):
         iter = [item]
-        for fn in fn_seq:
+        for fn in self.fn_seq:
             iter = flatten(map(fn, iter))
         return iter
 
-    return fn_
+
+class fan_out(fan_out):
+
+    def __init__(self, *fn_seq):
+        return super().__init__(fn_seq)
 
 
 def compute_value(value_fn):
