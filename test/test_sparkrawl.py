@@ -18,13 +18,18 @@ import sys
 USE_SPARK = False
 
 
-def test_nested_loop(tmp_path):
-
+@pytest.fixture
+def example_data(tmp_path):
     data_path = tmp_path / "data"
     populate_directory(data_path)
+    return data_path
+
+
+def test_nested_loop(example_data):
+
 
     def records():
-        for d1 in data_path.iterdir():
+        for d1 in example_data.iterdir():
             if not d1.is_dir():
                 continue
 
@@ -55,10 +60,7 @@ def test_nested_loop(tmp_path):
     assert set(df.columns) == set(["color", "year", "size", "x"])
 
 
-def test_pipeline(tmp_path):
-
-    data_path = tmp_path / "data"
-    populate_directory(data_path)
+def test_pipeline(example_data):
 
     def parquet_attribs(path: Path):
         attr, value = path.name.split("=", maxsplit=1)
@@ -82,10 +84,27 @@ def test_pipeline(tmp_path):
         for_each(drop_key)
     )
 
-    df = pd.DataFrame.from_records(exploder(data_path))
+    df = pd.DataFrame.from_records(exploder(example_data))
 
     # assert False, df
     assert set(df.columns) == set(["color", "year", "size", "x"])
+
+
+def test_explode_with(example_data):
+
+    stage1 = pipeline(key_only, iterate_dirs, for_each(with_attribs(color=lambda path: path.name)))
+    p1 = stage1
+    p2 = explode_with(stage1)
+
+    tagged = (example_data, dict(keep=42))
+
+    for _, attribs in p1(tagged):
+        assert attribs.keys() == {"color"}
+        break
+
+    for _, attribs in p2(tagged):
+        assert attribs.keys() == {"color", "keep"}
+        break
 
 
 @pytest.fixture
