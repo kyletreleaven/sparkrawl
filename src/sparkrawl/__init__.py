@@ -37,6 +37,24 @@ class explode_with:
             yield child, {**attribs, **attribs_}
 
 
+def explode_pandas_df(
+        df: "pandas.DataFrame",
+        key_attrib: str,
+        explode_fn: ExplodeDataFrameFn,
+):
+    import pandas as pd
+
+    def records():
+        for _, row in df.iterrows():
+            rec = dict(row)
+            key = rec.pop(key_attrib)
+            tup = key, rec
+            for attribs in explode_fn(tup):
+                yield {**rec, **attribs}
+
+    return pd.DataFrame.from_records(records())
+
+
 def explode_df(
         df: pyspark.sql.DataFrame,
         key_attrib: str,
