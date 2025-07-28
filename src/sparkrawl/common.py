@@ -1,3 +1,5 @@
+"""Commonly re-used utilities."""
+
 
 def place_of(x):
     yield x

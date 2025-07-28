@@ -3,10 +3,8 @@ import shutil
 import tempfile
 from functools import cached_property
 from pathlib import Path
-from pydoc import parentname
-from urllib.parse import urlparse, quote, unquote
+from urllib.parse import urlparse, unquote
 from dataclasses import dataclass
-from sparkrawl.common import inner_class
 
 
 @dataclass(frozen=True)
