@@ -101,6 +101,28 @@ def test_krawl(spark_context, tmp_path):
     assert isinstance(attribs["x"], float)
     assert attribs["global_attr"] == 42
 
+    # TODO: Break this test up.
+
+    exploder1 = explode_with(pipeline(key_only, AttributePathBranch("color")))
+    exploder2 = explode_with(pipeline(key_only, AttributePathBranch("year", int)))
+
+    item = (data_path, {})
+    for out in exploder1(item):
+        subdir, attribs = out
+        for out_ in exploder2(out):
+            subdir_, attribs_ = out_
+            assert "color" in attribs_
+            assert "year" in attribs_
+
+    by_fan = fan_out(
+        exploder1,
+        exploder2
+    )
+    for out_ in by_fan(item):
+        subdir_, attribs_ = out_
+        assert "color" in attribs_
+        assert "year" in attribs_
+
 
 if USE_SPARK:
     from pyspark.sql.types import *
