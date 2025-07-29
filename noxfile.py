@@ -42,6 +42,28 @@ def dev(session):
 
 
 @nox.session
+def notebook(session):
+    try:
+        toml = nox.project.load_toml("pyproject.toml")
+        dev_deps = toml["project"]["optional-dependencies"]["dev"]
+
+    except:
+        import json
+        print(json.dumps(toml, indent=2))
+        raise
+
+    session.install("-e", ".")
+    session.install(*dev_deps)
+
+    import os
+
+    session.run(
+        "jupyter", "notebook",
+        env={"PYTHONPATH": os.path.abspath("test_util")}
+    )
+
+
+@nox.session
 def test(session):
 
     try:
