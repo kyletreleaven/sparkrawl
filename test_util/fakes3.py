@@ -1,6 +1,5 @@
 import dataclasses
 import shutil
-import tempfile
 from functools import cached_property
 from pathlib import Path
 from urllib.parse import urlparse, unquote
@@ -32,16 +31,20 @@ class FakeS3:
     def list_objects(self, uri: str):
         uri_ = Uri.from_uri(uri)
         path = self._to_path(uri_.bucket, uri_.key)
-        for path_ in path.iterdir():
-            if path_.is_file():
-                yield f"s3://{uri_.bucket}/{uri_.key}/{path_.name}"
+        return [
+            f"s3://{uri_.bucket}/{uri_.key}/{path_.name}"
+            for path_ in path.iterdir()
+            if path_.is_file()
+        ]
 
     def list_prefixes(self, uri: str):
         uri_ = Uri.from_uri(uri)
         path = self._to_path(uri_.bucket, uri_.key)
-        for path_ in path.iterdir():
-            if path_.is_dir():
-                yield f"s3://{uri_.bucket}/{uri_.key}/{path_.name}"
+        return [
+            f"s3://{uri_.bucket}/{uri_.key}/{path_.name}"
+            for path_ in path.iterdir()
+            if path_.is_dir()
+        ]
 
 
 @dataclass(frozen=True)
@@ -74,15 +77,18 @@ class Uri:
         return f"s3://{self.bucket}/{str(self.key)}"
 
 
-fakes3 = FakeS3(Path("my-fake-s3"))
+if False:
+    import tempfile
 
-uri = Uri.from_uri("s3://my-bucket/my-prefix/some-object")
+    fakes3 = FakeS3(Path("my-fake-s3"))
 
-with tempfile.NamedTemporaryFile() as f:
-    with open(f.name, "w") as f_:
-        pass
-    fakes3.put(f.name, str(uri))
+    uri = Uri.from_uri("s3://my-bucket/my-prefix/some-object")
 
-# fakes3.get(str(uri), "downloaded")
+    with tempfile.NamedTemporaryFile() as f:
+        with open(f.name, "w") as f_:
+            pass
+        fakes3.put(f.name, str(uri))
 
-list(fakes3.list_prefixes(str(uri.parent))), list(fakes3.list_objects(str(uri.parent)))
+    # fakes3.get(str(uri), "downloaded")
+
+    list(fakes3.list_prefixes(str(uri.parent))), list(fakes3.list_objects(str(uri.parent)))
