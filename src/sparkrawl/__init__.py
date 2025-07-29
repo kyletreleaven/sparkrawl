@@ -188,12 +188,12 @@ class pipeline(pipeline):
         return super().__init__(fn_seq)
 
 
-def for_each(fn):
+@dataclass(frozen=True)
+class for_each:
+    map_fn: Callable
 
-    def fn_(it):
-        yield from (fn(i) for i in it)
-
-    return fn_
+    def __call__(self, it: Iterable):
+        yield from (self.map_fn(i) for i in it)
 
 
 def map_key(fn):
