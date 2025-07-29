@@ -1,0 +1,1 @@
+PYTHONPATH=`pwd`/test_util:$PYTHONPATH ./.nox/notebook/bin/jupyter notebook
