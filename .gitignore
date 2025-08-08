@@ -6,3 +6,5 @@ fake-s3
 data
 
 *.egg-info/
+
+build
