@@ -1,0 +1,40 @@
+# https://www.mkdocs.org/user-guide/configuration/#build-directories
+
+site_name: sparkrawl
+site_dir: build/site
+theme:
+  # name: material
+  name: readthedocs
+  # name: terminal
+  # code_style: monokai
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            members_order: source
+            show_source: false
+            # show_root_toc_entry: true
+            # show_root_heading: true
+            extra:
+              source_link_format: "https://github.com/kyletreleaven/sparkrawl/blob/master/{path}#L{lineno}"
+
+nav:
+  - Home: index.md
+  - Notebooks:
+    - Demo: notebooks/demo.md
+  - API: api.md
+  - GitHub: https://github.com/kyletreleaven/sparkrawl
+
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - extra.css
