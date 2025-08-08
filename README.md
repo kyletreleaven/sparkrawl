@@ -1,27 +1,28 @@
 # Introduction
 
+`sparkrawl` is a micro-framework providing a declarative, modular, and portable way to define crawlers
+for custom data layouts and their embedded semantics.
+It can make ingestion pipelines more robust, maintainable, and portable across teams and tools.
+Given its local-first design, `sparkrawl` can be integrated
+into nearly any distributed data processing framework.
+Batteries are included for Spark in particular.
+
 ## Why `sparkrawl`?
 
 In modern data workflows,
 much of the tooling assumes strict, often managed conventions
-for the formats and layouts your data are stored in:
-Delta Lake, Apache Hudi, Apache Iceberg, Presto, Trino, to name a few.
+for the formats and layouts your data are stored in.
 They expect clean, well-structured tables stored in standardized formats like parquet or ORC,
 with explicit schema and/or partitioning metadata managed in catalogs.
 
-
 Unfortunately, the real world is full of ad hoc data files in CSV, JSON, and other common formats,
 and in unstructured layouts.
-Moreover, key metadata is frequently encoded in directory hierarchies, filenames, or auxiliary files.
+At the same time, important metadata is frequently encoded in directory hierarchies, filenames, or auxiliary files.
 Such layout-embedded metadata is essential for correctly interpreting and processing the data, 
 yet is invisible to conventional tools without explicit extraction or strict adherence to conventions like Hive's.
-Translating these messy data into the structures required by popular frameworks can be tedious, expensive, and error-prone.
-Agile teams can't always wait for this process to catch up to their latest projects.
+Translating these messy data into the structures required by popular frameworks can be tedious, expensive, and error-prone, and
+agile teams can't always wait for this process to catch up to their latest projects.
 Therefore, many data processing workflows, e.g., written in Spark, must handle such messy, heterogeneous data.
-
-`sparkrawl` is a micro-framework providing a declarative, modular, and portable way to define crawlers for custom layouts and their embedded semantics.
-Compatible with distributed data processing frameworks like Spark,
-it can make ingestion pipelines more robust, maintainable, and portable across teams and tools.
 
 ### Why is so much data outside of conventional storage?
 
