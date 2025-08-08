@@ -27,7 +27,6 @@ def example_data(tmp_path):
 
 def test_nested_loop(example_data):
 
-
     def records():
         for d1 in example_data.iterdir():
             if not d1.is_dir():
