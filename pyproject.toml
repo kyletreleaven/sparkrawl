@@ -16,8 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 build = [
-    "black",
-    # "click",
+    "click",
 ]
 dev = [
     "pysparkling",
@@ -34,6 +33,7 @@ format = [
     "black",
 ]
 docs = [
+    "sparkrawl[dev]",
     "nbconvert",
     "mkdocs-material",
     "mkdocs-terminal",
