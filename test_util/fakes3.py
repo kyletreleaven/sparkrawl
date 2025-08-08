@@ -75,20 +75,3 @@ class Uri:
 
     def __str__(self):
         return f"s3://{self.bucket}/{str(self.key)}"
-
-
-if False:
-    import tempfile
-
-    fakes3 = FakeS3(Path("my-fake-s3"))
-
-    uri = Uri.from_uri("s3://my-bucket/my-prefix/some-object")
-
-    with tempfile.NamedTemporaryFile() as f:
-        with open(f.name, "w") as f_:
-            pass
-        fakes3.put(f.name, str(uri))
-
-    # fakes3.get(str(uri), "downloaded")
-
-    list(fakes3.list_prefixes(str(uri.parent))), list(fakes3.list_objects(str(uri.parent)))
