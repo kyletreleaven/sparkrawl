@@ -4,3 +4,5 @@ __pycache__
 # test and/or demo data
 fake-s3
 data
+
+*.egg-info/
