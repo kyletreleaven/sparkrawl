@@ -25,25 +25,22 @@ class explode_with(Generic[T1, T2]):
             yield child, {**attribs, **attribs_}
 
 
-@dataclass(frozen=True)
-class explode_pandas_df(Generic[T]):
-    df: "pandas.DataFrame"
-    key_attrib: str
+def explode_pandas_df(
+    df: "pandas.DataFrame",
+    key_attrib: str,
     explode_fn: Callable[[WithAttrs[T]], Iterable[Attribs]]
+):
+    import pandas as pd
 
-    def __call__(self, item: WithAttrs[T]) -> "pandas.DataFrame":
+    def records():
+        for _, row in df.iterrows():
+            rec = dict(row)
+            key = rec.pop(key_attrib)
+            tup = key, rec
+            for attribs in explode_fn(tup):
+                yield {**rec, **attribs}
 
-        import pandas as pd
-
-        def records():
-            for _, row in self.df.iterrows():
-                rec = dict(row)
-                key = rec.pop(self.key_attrib)
-                tup = key, rec
-                for attribs in self.explode_fn(tup):
-                    yield {**rec, **attribs}
-
-        return pd.DataFrame.from_records(records())
+    return pd.DataFrame.from_records(records())
 
 
 def explode_df(
