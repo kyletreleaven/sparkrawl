@@ -1,5 +1,6 @@
+"""A microframework for exploding your datasets."""
 from dataclasses import dataclass
-from typing import TypeVar, Callable, Dict, Any, Iterable, Tuple, Optional, Generic
+from typing import TypeVar, Callable, Dict, Any, Iterable, Tuple, Optional, Generic, Protocol
 
 import pyspark
 
@@ -8,28 +9,87 @@ from sparkrawl.common import singleton
 T = TypeVar("T")
 T1 = TypeVar("T1")
 T2 = TypeVar("T2")
+
 Attribs = Dict[str, Any]
-WithAttrs = Tuple[T, Attribs]
+"""Type alias for a dictionary of attributes."""
+
+Tagged = Tuple[T, Attribs]
+"""Generic type alias for the tuple of an element with associated attributes."""
+
+
+class FromTagged(Generic[T1]):
+    """Functions of a tagged element."""
+
+    class ToTaggedIter(Protocol[T2]):
+
+        def __call__(self, tagged_parent: Tagged[T1]) -> Iterable[Tagged[T2]]:
+            """Iterate the tagged children of a tagged parent.
+
+            Useful for by `explode_with`.
+
+            Args:
+                tagged_parent: The tuple of a parent element and associated attributes.
+
+            Yields:
+                Tagged children; i.e., child elements and associated attributes.
+
+            """
+            raise NotImplementedError
+
+    class ToAttribIter(Protocol):
+        def __call__(self, tagged_parent: Tagged[T1]) -> Iterable[Attribs]:
+            """Iterate the attributes of children of a tagged parent.
+
+            Useful for `explode*_df`.
+
+            Args:
+                tagged_parent: The tuple of a parent element and associated attributes.
+
+            Yields:
+                Children attributes.
+
+            """
+            raise NotImplementedError
 
 
 @dataclass(frozen=True)
-class explode_with(Generic[T1, T2]):
-    """Decorates a with-attributes iterator function to merge parent attributes into children's."""
+class explode_with(FromTagged[T1].ToTaggedIter[T2]):
+    """Decorate a `FromTagged.ToTaggedIter` to merge parent attributes into children's."""
+    iter_fn: FromTagged[T1].ToTaggedIter[T2]
 
-    iter_fn: Callable[[WithAttrs[T1]], Iterable[WithAttrs[T2]]]
-
-    def __call__(self, item: WithAttrs[T1]) -> Iterable[WithAttrs[T2]]:
+    def __call__(self, item: Tagged[T1]) -> Iterable[Tagged[T2]]:
+        """Iterate tagged children while merging parent attributes into each."""
         _parent, attribs = item
-
         for child, attribs_ in self.iter_fn(item):
             yield child, {**attribs, **attribs_}
 
 
-def explode_pandas_df(
+def explode_df(
     df: "pandas.DataFrame",
     key_attrib: str,
-    explode_fn: Callable[[WithAttrs[T]], Iterable[Attribs]]
-):
+    explode_fn: FromTagged[T1].ToAttribIter
+) -> "pandas.DataFrame":
+    """Explode a `pandas.DataFrame` using a `FromTagged[T1].ToAttribIter`.
+
+    Each row in the input `DataFrame` represents a tagged parent.
+    The indicated `key_attrib` column is used as the parent element, while
+    all other columns form the parents' tags.
+    The `explode_fn` is applied to each parent in the `DataFrame`,
+    and the collection of all children attributes are collected into the output `DataFrame`.
+
+    Parent attributes are not automatically merged into the childrens'.
+    If that is desired the caller is responsible to ensure it, e.g., by
+    decorating the `explode_fn` with `explode_with`.
+
+    Args:
+        df: The input DataFrame
+        key_attrib: The name of the column used as the parent; should be of type `T1`
+        explode_fn: The function used to iterate children attributes
+
+    Returns:
+          `DataFrame` of all childrens' attributes
+
+    """
     import pandas as pd
 
     def records():
@@ -43,13 +103,14 @@ def explode_pandas_df(
     return pd.DataFrame.from_records(records())
 
 
-def explode_df(
+def explode_spark_df(
     df: pyspark.sql.DataFrame,
     key_attrib: str,
-    explode_fn: Callable[[WithAttrs[T]], Iterable[Attribs]],
+    explode_fn: FromTagged[T1].ToAttribIter,
     *,
     new_cols_schema: pyspark.sql.types.StructType = None,
 ):
+    """A Spark version of `explode_df`."""
 
     rdd = (
         df_to_dict_rdd(df)
@@ -170,7 +231,7 @@ def inject_key(key_attrib: str, converter: type = None):
 
 
 @dataclass(frozen=True)
-class pipeline:
+class _pipeline:
     fn_seq: Tuple[Callable]
 
     def __call__(self, item):
@@ -179,7 +240,18 @@ class pipeline:
         return item
 
 
-class pipeline(pipeline):
+class pipeline(_pipeline):
+    """Applies a sequence of functions to its input.
+
+    Example:
+        ```pycon
+        >>> p = pipeline(range, for_each(lambda x: x ** 2), sum)
+        >>> p(4) == sum(x ** 2 for x in range(4))
+        True
+
+        ```
+
+    """
 
     def __init__(self, *fn_seq):
         return super().__init__(fn_seq)
@@ -187,6 +259,16 @@ class pipeline(pipeline):
 
 @dataclass(frozen=True)
 class for_each:
+    """Applies a function to each element of the input collection.
+
+    Example:
+        ```pycon
+        >>> list(for_each(lambda x: x ** 2)(range(4)))
+        [0, 1, 4, 9]
+
+        ```
+
+    """
     map_fn: Callable
 
     def __call__(self, it: Iterable):
@@ -203,6 +285,16 @@ def map_key(fn):
 
 
 def key_only(item):
+    """
+
+    Example:
+        ```pycon
+        >>> key_only(("key", "value"))
+        'key'
+
+        ```
+
+    """
     key, value = item
     return key
 

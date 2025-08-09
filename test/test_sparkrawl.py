@@ -268,7 +268,7 @@ def test_krawl_df(
     ) # :: str -> [(str, {attrs})]
 
     # now we need something that takes key, {attrs}, and iterates just {attrs_}
-    df1 = explode_df(
+    df1 = explode_spark_df(
         df,
         "path",
         pipeline(
@@ -288,7 +288,7 @@ def test_krawl_df(
 
     iterate_files_ = pipeline(Path, iterate_files, for_each(str))
 
-    df2 = explode_df(
+    df2 = explode_spark_df(
         df1, "child_path",
         pipeline(
             key_only,
@@ -299,7 +299,7 @@ def test_krawl_df(
 
     read_jsonlines_ = pipeline(Path, read_jsonlines)
 
-    df3 = explode_df(
+    df3 = explode_spark_df(
         df2, "file_path",
         pipeline(
             key_only,
