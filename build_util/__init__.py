@@ -22,7 +22,7 @@ class docs:
     """Compiles documentation including a Jupyter notebook."""
 
     def create(self):
-        demo_notebook.create()  # TODO: Skip if it already exists.
+        demo_notebook.ensure()
         noxrun("docs", ["mkdocs", "build"])
 
 
@@ -38,6 +38,10 @@ class demo_notebook:
 
     output_dir = DOCS_DIR / "notebooks"
     output_file = output_dir / "demo.html"
+
+    def ensure(self):
+        if not self.output_file.exists():
+            self.create()
 
     def create(self):
         kernel.install()

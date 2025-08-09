@@ -3,8 +3,8 @@
 site_name: sparkrawl
 site_dir: build/site
 theme:
-  # name: material
-  name: readthedocs
+  name: material
+  # name: readthedocs
   # name: terminal
   # code_style: monokai
 
@@ -24,14 +24,15 @@ plugins:
 
 nav:
   - Home: index.md
-  - Notebooks:
-    - Demo: notebooks/demo.md
   - API: api.md
   - GitHub: https://github.com/kyletreleaven/sparkrawl
 
 markdown_extensions:
+  # - pymdownx.superfences
   - pymdownx.arithmatex:
       generic: true
+  - pymdownx.extra
+  - pymdownx.magiclink
 
 extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
