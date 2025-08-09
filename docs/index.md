@@ -37,22 +37,18 @@ Therefore, many data processing workflows, e.g., written in Spark, must handle s
 
 There are many, many reasons. Maybe some of these apply to your organization..
 
-* Agility
-  * Early-stage projects or exploratory analyses often gather raw data quickly without formal schemas or cataloging.
-  * Teams may prioritize speed over structure.
-  Metadata might be encoded in filenames or folder structures to minimize overhead.
-  * Standardizing data into formats like Parquet and managing catalogs requires upfront effort and tooling investment.
-  Smaller teams or fast-moving startups may defer this until later.
-  * Catalogs may quickly become incomplete or outdated.
+- Agility
+    - Early-stage projects or exploratory analyses often gather raw data quickly without formal schemas or cataloging.
+    - Teams may prioritize speed over structure. Metadata might be encoded in filenames or folder structures to minimize overhead.
+    - Standardizing data into formats like Parquet and managing catalogs requires upfront effort and tooling investment. Smaller teams or fast-moving startups may defer this until later.
+    - Catalogs may quickly become incomplete or outdated.
 
-* Technology
-  * Metadata catalogs may not be fully portable.
-  * Old applications or devices may dump data in proprietary or ad hoc formats (e.g., custom logs, binary dumps).
-  * Scientific measurement data, or multimedia, often use specialized binary formats with embedded metadata. 
-  These formats don’t map easily to tabular schemas.
+- Technology
+    - Metadata catalogs may not be fully portable.
+    - Old applications or devices may dump data in proprietary or ad hoc formats (e.g., custom logs, binary dumps).
+    - Scientific measurement data, or multimedia, often use specialized binary formats with embedded metadata. These formats don’t map easily to tabular schemas.
 
-* Governance
-  * Data might be spread across disconnected systems without a unified ingestion process.
-  * Organizations without mature data governance may have inconsistent data ingestion, leading to missing or fragmented metadata.
-  * When sharing data across teams or companies,
-  recipients may receive data in formats convenient to the provider, not standardized ones.
+- Governance
+    - Data might be spread across disconnected systems without a unified ingestion process.
+    - Organizations without mature data governance may have inconsistent data ingestion, leading to missing or fragmented metadata.
+    - When sharing data across teams or companies, recipients may receive data in formats convenient to the provider, not standardized ones.
