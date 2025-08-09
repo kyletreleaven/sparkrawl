@@ -28,11 +28,12 @@ nav:
   - GitHub: https://github.com/kyletreleaven/sparkrawl
 
 markdown_extensions:
-  # - pymdownx.superfences
+  - pymdownx.superfences
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.extra
   - pymdownx.magiclink
+  - pymdownx.betterem
 
 extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
