@@ -27,6 +27,7 @@ Therefore, many data processing workflows, e.g., written in Spark, must handle s
 
 ## Demo Notebook
 
+<a href="notebooks/demo.html" target="_blank" rel="noopener noreferrer">[open]</a>
 <div class="md-content">
 <iframe src="notebooks/demo.html" width="100%" height="800px" style="border: none;"></iframe>
 </div>
